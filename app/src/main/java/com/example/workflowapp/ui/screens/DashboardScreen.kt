@@ -1,5 +1,11 @@
 package com.example.workflowapp.ui.screens
 
+import android.annotation.SuppressLint
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.app.TimePickerDialog
+import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +29,8 @@ import com.example.workflowapp.network.*
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun DashboardScreen(userName: String, userId: Int) {
@@ -31,7 +39,6 @@ fun DashboardScreen(userName: String, userId: Int) {
     var isLoading by remember { mutableStateOf(true) }
     var showAddDialog by remember { mutableStateOf(false) }
 
-    // TRẠNG THÁI CHO CHỨC NĂNG SỬA
     var showEditDialog by remember { mutableStateOf(false) }
     var selectedTaskForEdit by remember { mutableStateOf<Task?>(null) }
 
@@ -61,11 +68,11 @@ fun DashboardScreen(userName: String, userId: Int) {
                 containerColor = Color(0xFF3B82F6),
                 contentColor = Color.White,
                 shape = CircleShape
-            ) { Icon(Icons.Default.Add, contentDescription = null) }
+            ) { Icon(Icons.Default.Add, contentDescription = "Thêm mới") }
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).background(Color(0xFFF8FAFC))) {
-            // Header (Giữ nguyên phong cách HKPH)
+            // Header
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -77,7 +84,7 @@ fun DashboardScreen(userName: String, userId: Int) {
             ) {
                 Column {
                     Text("Xin chào, $userName 👋", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text("HKPH WorkFlow System", color = Color.LightGray, fontSize = 12.sp)
+                    Text("Hôm nay bạn có ${tasks.count { it.status != "Done" }} việc chưa xong", color = Color.LightGray, fontSize = 13.sp)
                 }
             }
 
@@ -96,14 +103,14 @@ fun DashboardScreen(userName: String, userId: Int) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else {
                 LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (filteredTasks.isEmpty()) {
+                        item { Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("Chưa có công việc nào.", color = Color.Gray) } }
+                    }
                     items(filteredTasks) { task ->
                         EnhancedTaskCard(
                             task = task,
                             onRefresh = { refreshTasks() },
-                            onEditClick = { // Khi bấm sửa, lưu task và mở popup
-                                selectedTaskForEdit = it
-                                showEditDialog = true
-                            }
+                            onEditClick = { selectedTaskForEdit = it; showEditDialog = true }
                         )
                     }
                 }
@@ -111,18 +118,12 @@ fun DashboardScreen(userName: String, userId: Int) {
         }
     }
 
-    // Popup Thêm mới
     if (showAddDialog) {
         AddTaskDialog(onDismiss = { showAddDialog = false }, onTaskCreated = { showAddDialog = false; refreshTasks() }, userId = userId)
     }
 
-    // Popup Chỉnh sửa
     if (showEditDialog && selectedTaskForEdit != null) {
-        EditTaskDialog(
-            task = selectedTaskForEdit!!,
-            onDismiss = { showEditDialog = false },
-            onTaskUpdated = { showEditDialog = false; refreshTasks() }
-        )
+        EditTaskDialog(task = selectedTaskForEdit!!, onDismiss = { showEditDialog = false }, onTaskUpdated = { showEditDialog = false; refreshTasks() })
     }
 }
 
@@ -135,61 +136,115 @@ fun EnhancedTaskCard(task: Task, onRefresh: () -> Unit, onEditClick: (Task) -> U
         else -> Color(0xFF10B981)
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(40.dp).background(accentColor.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = if (task.status == "Done") Icons.Default.CheckCircle else Icons.Default.List,
-                    contentDescription = null, tint = accentColor
-                )
+                Icon(imageVector = if (task.status == "Done") Icons.Default.CheckCircle else Icons.Default.List, contentDescription = null, tint = accentColor)
             }
-
             Spacer(modifier = Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Text(task.task_title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF1E293B))
-                Text(task.description ?: "Không có mô tả", fontSize = 13.sp, color = Color(0xFF64748B), maxLines = 1)
+                if (!task.description.isNullOrEmpty()) Text(task.description, fontSize = 13.sp, color = Color(0xFF64748B), maxLines = 1)
             }
-
             Row {
-                // CHỈ HIỂN THỊ NÚT SỬA Ở TRẠNG THÁI "TO DO"
                 if (task.status == "To Do") {
-                    IconButton(onClick = { onEditClick(task) }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Sửa", tint = Color.Gray, modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = { updateStatus(task.id, "In Progress", onRefresh) }) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Bắt đầu", tint = Color(0xFF3B82F6))
-                    }
+                    IconButton(onClick = { onEditClick(task) }) { Icon(Icons.Default.Edit, contentDescription = "Sửa", tint = Color.Gray, modifier = Modifier.size(20.dp)) }
+                    IconButton(onClick = { updateStatus(task.id, "In Progress", onRefresh) }) { Icon(Icons.Default.PlayArrow, contentDescription = "Bắt đầu", tint = Color(0xFF3B82F6)) }
                 }
-
                 if (task.status == "In Progress") {
-                    IconButton(onClick = { updateStatus(task.id, "To Do", onRefresh) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Tạm dừng", tint = Color.Gray)
-                    }
-                    IconButton(onClick = { updateStatus(task.id, "Done", onRefresh) }) {
-                        Icon(Icons.Default.Check, contentDescription = "Hoàn thành", tint = Color(0xFF10B981))
-                    }
+                    IconButton(onClick = { updateStatus(task.id, "To Do", onRefresh) }) { Icon(Icons.Default.Refresh, contentDescription = "Tạm dừng", tint = Color.Gray) }
+                    IconButton(onClick = { updateStatus(task.id, "Done", onRefresh) }) { Icon(Icons.Default.Check, contentDescription = "Hoàn thành", tint = Color(0xFF10B981)) }
                 }
-
                 IconButton(onClick = {
                     RetrofitClient.instance.deleteTask(DeleteTaskRequest(task.id)).enqueue(object : Callback<ApiResponse> {
                         override fun onResponse(call: Call<ApiResponse>, response: Response<ApiResponse>) { if (response.isSuccessful) onRefresh() }
                         override fun onFailure(call: Call<ApiResponse>, t: Throwable) {}
                     })
-                }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Xóa", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
-                }
+                }) { Icon(Icons.Default.Delete, contentDescription = "Xóa", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp)) }
             }
         }
     }
 }
 
-// POPUP CHỈNH SỬA CÔNG VIỆC
+// ----------------- CHỨC NĂNG THÊM MỚI (CÓ CHỌN GIỜ ĐỂ BÁO THỨC) -----------------
+@Composable
+fun AddTaskDialog(onDismiss: () -> Unit, onTaskCreated: () -> Unit, userId: Int) {
+    var title by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    val context = LocalContext.current
+
+    // Quản lý thời gian
+    val calendar = remember { Calendar.getInstance() }
+    var selectedTimeText by remember { mutableStateOf("Chưa chọn giờ") }
+    var timeInMillis by remember { mutableLongStateOf(0L) }
+
+    val timePickerDialog = TimePickerDialog(
+        context,
+        { _, hourOfDay, minute ->
+            calendar.set(Calendar.HOUR_OF_DAY, hourOfDay)
+            calendar.set(Calendar.MINUTE, minute)
+            calendar.set(Calendar.SECOND, 0)
+            timeInMillis = calendar.timeInMillis
+            selectedTimeText = String.format("%02d:%02d", hourOfDay, minute)
+        },
+        calendar.get(Calendar.HOUR_OF_DAY),
+        calendar.get(Calendar.MINUTE),
+        true
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Tạo công việc mới", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Tên công việc") }, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Mô tả") }, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Nút bấm mở bảng chọn giờ
+                Button(onClick = { timePickerDialog.show() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray, contentColor = Color.Black)) {
+                    Icon(Icons.Default.Notifications, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (timeInMillis == 0L) "Hẹn giờ báo thức" else "Báo thức lúc: $selectedTimeText")
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (title.isEmpty()) {
+                    Toast.makeText(context, "Vui lòng nhập tên công việc", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+
+                // Định dạng thời gian cho MySQL (YYYY-MM-DD HH:MM:SS)
+                val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                val deadlineStr = if (timeInMillis > 0L) formatter.format(calendar.time) else null
+
+                // THÊM ĐẦY ĐỦ THAM SỐ VÀO YÊU CẦU
+                val req = CreateTaskRequest(title, desc, userId, deadlineStr)
+
+                RetrofitClient.instance.createTask(req).enqueue(object : Callback<ApiResponse> {
+                    override fun onResponse(call: Call<ApiResponse>, response: Response<ApiResponse>) {
+                        if (response.isSuccessful) {
+                            // Nếu có hẹn giờ thì gọi hàm đặt lịch báo thức
+                            if (timeInMillis > System.currentTimeMillis()) {
+                                scheduleNotification(context, title, timeInMillis)
+                            }
+                            onTaskCreated()
+                        }
+                    }
+                    override fun onFailure(call: Call<ApiResponse>, t: Throwable) {
+                        Toast.makeText(context, "Lỗi kết nối", Toast.LENGTH_SHORT).show()
+                    }
+                })
+            }) { Text("Lưu") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } }
+    )
+}
+
+// ----------------- CÁC HÀM PHỤ TRỢ (SỬA, CẬP NHẬT TRẠNG THÁI, THÔNG BÁO) -----------------
 @Composable
 fun EditTaskDialog(task: Task, onDismiss: () -> Unit, onTaskUpdated: () -> Unit) {
     var title by remember { mutableStateOf(task.task_title) }
@@ -209,14 +264,8 @@ fun EditTaskDialog(task: Task, onDismiss: () -> Unit, onTaskUpdated: () -> Unit)
         confirmButton = {
             Button(onClick = {
                 if (title.isEmpty()) return@Button
-                val req = UpdateTaskRequest(task.id, title, desc)
-                RetrofitClient.instance.updateTask(req).enqueue(object : Callback<ApiResponse> {
-                    override fun onResponse(call: Call<ApiResponse>, response: Response<ApiResponse>) {
-                        if (response.isSuccessful) {
-                            Toast.makeText(context, "Đã cập nhật!", Toast.LENGTH_SHORT).show()
-                            onTaskUpdated()
-                        }
-                    }
+                RetrofitClient.instance.updateTask(UpdateTaskRequest(task.id, title, desc)).enqueue(object : Callback<ApiResponse> {
+                    override fun onResponse(call: Call<ApiResponse>, response: Response<ApiResponse>) { if (response.isSuccessful) onTaskUpdated() }
                     override fun onFailure(call: Call<ApiResponse>, t: Throwable) {}
                 })
             }) { Text("Cập nhật") }
@@ -225,7 +274,6 @@ fun EditTaskDialog(task: Task, onDismiss: () -> Unit, onTaskUpdated: () -> Unit)
     )
 }
 
-// Các hàm phụ trợ giữ nguyên
 fun updateStatus(taskId: Int, newStatus: String, onComplete: () -> Unit) {
     RetrofitClient.instance.updateTaskStatus(UpdateStatusRequest(taskId, newStatus)).enqueue(object : Callback<ApiResponse> {
         override fun onResponse(call: Call<ApiResponse>, response: Response<ApiResponse>) { if (response.isSuccessful) onComplete() }
@@ -233,31 +281,14 @@ fun updateStatus(taskId: Int, newStatus: String, onComplete: () -> Unit) {
     })
 }
 
-@Composable
-fun AddTaskDialog(onDismiss: () -> Unit, onTaskCreated: () -> Unit, userId: Int) {
-    var title by remember { mutableStateOf("") }
-    var desc by remember { mutableStateOf("") }
-    val context = LocalContext.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Tạo công việc mới", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Tên công việc") })
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Mô tả") })
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                if (title.isEmpty()) return@Button
-                val req = CreateTaskRequest(title, desc, userId)
-                RetrofitClient.instance.createTask(req).enqueue(object : Callback<ApiResponse> {
-                    override fun onResponse(call: Call<ApiResponse>, response: Response<ApiResponse>) { if (response.isSuccessful) onTaskCreated() }
-                    override fun onFailure(call: Call<ApiResponse>, t: Throwable) {}
-                })
-            }) { Text("Lưu") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } }
+@SuppressLint("ScheduleExactAlarm")
+fun scheduleNotification(context: Context, title: String, timeInMillis: Long) {
+    val intent = Intent(context, NotificationReceiver::class.java).apply {
+        putExtra("task_title", title)
+    }
+    val pendingIntent = PendingIntent.getBroadcast(
+        context, timeInMillis.toInt(), intent, PendingIntent.FLAG_IMMUTABLE
     )
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, timeInMillis, pendingIntent)
 }

@@ -21,22 +21,22 @@ data class Task(
     val task_title: String,
     val description: String?,
     val status: String,
-    val priority: String
+    val priority: String,
+    val deadline_time: String?
 )
 
 data class CreateTaskRequest(
     val task_title: String,
     val description: String,
     val assigned_to: Int,
+    val deadline_time: String?,
     val priority: String = "Medium"
 )
 
 data class TaskListResponse(val status: String, val data: List<Task>)
 
-// ĐÂY NÀY: Cái bạn tìm nó nằm chung ở đây luôn nè
 data class UpdateStatusRequest(val task_id: Int, val status: String)
 
-// 3. Khai báo các đường dẫn API
 interface ApiService {
     @POST("task_api/register.php")
     fun registerUser(@Body request: RegisterRequest): Call<ApiResponse>
