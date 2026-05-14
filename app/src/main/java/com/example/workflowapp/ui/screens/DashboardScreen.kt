@@ -72,7 +72,6 @@ fun DashboardScreen(userName: String, userId: Int) {
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).background(Color(0xFFF8FAFC))) {
-            // Header
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -88,7 +87,6 @@ fun DashboardScreen(userName: String, userId: Int) {
                 }
             }
 
-            // Tabs
             TabRow(selectedTabIndex = selectedTab, containerColor = Color.Transparent, contentColor = Color(0xFF3B82F6)) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
@@ -166,7 +164,6 @@ fun EnhancedTaskCard(task: Task, onRefresh: () -> Unit, onEditClick: (Task) -> U
     }
 }
 
-// ----------------- CHỨC NĂNG THÊM MỚI (CÓ CHỌN GIỜ ĐỂ BÁO THỨC) -----------------
 @Composable
 fun AddTaskDialog(onDismiss: () -> Unit, onTaskCreated: () -> Unit, userId: Int) {
     var title by remember { mutableStateOf("") }
@@ -202,7 +199,6 @@ fun AddTaskDialog(onDismiss: () -> Unit, onTaskCreated: () -> Unit, userId: Int)
                 OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Mô tả") }, modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Nút bấm mở bảng chọn giờ
                 Button(onClick = { timePickerDialog.show() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray, contentColor = Color.Black)) {
                     Icon(Icons.Default.Notifications, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -217,17 +213,15 @@ fun AddTaskDialog(onDismiss: () -> Unit, onTaskCreated: () -> Unit, userId: Int)
                     return@Button
                 }
 
-                // Định dạng thời gian cho MySQL (YYYY-MM-DD HH:MM:SS)
                 val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                 val deadlineStr = if (timeInMillis > 0L) formatter.format(calendar.time) else null
 
-                // THÊM ĐẦY ĐỦ THAM SỐ VÀO YÊU CẦU
                 val req = CreateTaskRequest(title, desc, userId, deadlineStr)
 
                 RetrofitClient.instance.createTask(req).enqueue(object : Callback<ApiResponse> {
                     override fun onResponse(call: Call<ApiResponse>, response: Response<ApiResponse>) {
                         if (response.isSuccessful) {
-                            // Nếu có hẹn giờ thì gọi hàm đặt lịch báo thức
+                            // neu co hen gio thi goi ham` nay
                             if (timeInMillis > System.currentTimeMillis()) {
                                 scheduleNotification(context, title, timeInMillis)
                             }
@@ -244,7 +238,7 @@ fun AddTaskDialog(onDismiss: () -> Unit, onTaskCreated: () -> Unit, userId: Int)
     )
 }
 
-// ----------------- CÁC HÀM PHỤ TRỢ (SỬA, CẬP NHẬT TRẠNG THÁI, THÔNG BÁO) -----------------
+// sua , cap nhat , thong bao
 @Composable
 fun EditTaskDialog(task: Task, onDismiss: () -> Unit, onTaskUpdated: () -> Unit) {
     var title by remember { mutableStateOf(task.task_title) }

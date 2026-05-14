@@ -29,13 +29,12 @@ class MainActivity : ComponentActivity() {
                     var currentScreen by remember { mutableStateOf(AppScreen.LOGIN) }
 
                     var loggedInUserName by remember { mutableStateOf("") }
-                    // THÊM: Biến lưu ID người dùng
+
                     var loggedInUserId by remember { mutableStateOf(-1) }
 
                     when (currentScreen) {
                         AppScreen.LOGIN -> LoginScreen(
                             onNavigateToRegister = { currentScreen = AppScreen.REGISTER },
-                            // Nhận cả userName và userId từ LoginScreen
                             onLoginSuccess = { userName, userId ->
                                 loggedInUserName = userName
                                 loggedInUserId = userId
@@ -47,7 +46,7 @@ class MainActivity : ComponentActivity() {
                         )
                         AppScreen.DASHBOARD -> DashboardScreen(
                             userName = loggedInUserName,
-                            userId = loggedInUserId // Truyền ID này cho Dashboard lấy dữ liệu
+                            userId = loggedInUserId
                         )
                     }
                 }
